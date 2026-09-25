@@ -1,14 +1,17 @@
 {
-    "name": "@terraform-backend-http/handler",
+    "name": "@types/ucode",
     "version": "0.1.0",
     "private": true,
-    "description": "Terraform HTTP Backend implementation in ucode language",
+    "description": "UCode Platform Definitions",
     "license": "MIT",
     "author": {
         "name": "Enzo Coelho Albornoz",
         "url": "https://github.com/EnzoAlbornoz"
     },
     "type": "module",
+    "exports": {
+        "types": "./index.d.ts"
+    },
     "scripts": {
         "fmt": "oxfmt",
         "fmt:check": "oxfmt --check",
@@ -17,11 +20,9 @@
         "build": "tsdown --platform neutral"
     },
     "devDependencies": {
-        "@types/ucode": "workspace:",
         "oxfmt": "catalog:",
         "oxlint": "catalog:",
         "oxlint-tsgolint": "catalog:",
-        "tsdown": "catalog:",
         "typescript": "catalog:"
     },
     "packageManager": "aube@1.36.0"
