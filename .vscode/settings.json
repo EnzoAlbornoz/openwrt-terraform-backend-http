@@ -1,4 +1,6 @@
 {
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "oxc.oxc-vscode",
     "github.copilot.chat.commitMessageGeneration.instructions": [
         {
             "file": ".copilot-commit-message-instructions.md"
@@ -6,5 +8,5 @@
         {
             "text": "Use conventional commit message format. Do not stack multiple types in a single commit message, merge them into a single coherent message."
         }
-    ],
+    ]
 }
