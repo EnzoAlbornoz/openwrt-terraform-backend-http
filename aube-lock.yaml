@@ -24,10 +24,6 @@ importers:
   .: {}
 
   packages/handler:
-    dependencies:
-      typescript:
-        specifier: 'catalog:'
-        version: 7.0.2
     devDependencies:
       oxfmt:
         specifier: 'catalog:'
@@ -38,6 +34,9 @@ importers:
       oxlint-tsgolint:
         specifier: 'catalog:'
         version: 7.0.2003
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
 
 packages:
 

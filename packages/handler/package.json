@@ -9,15 +9,15 @@
     "main": "index.js",
     "scripts": {
         "fmt": "oxfmt",
-        "fmt:check": "oxfmt --check"
+        "fmt:check": "oxfmt --check",
+        "lint": "oxlint",
+        "lint:fix": "oxlint --fix"
     },
     "devDependencies": {
         "oxfmt": "catalog:",
         "oxlint": "catalog:",
-        "oxlint-tsgolint": "catalog:"
-    },
-    "packageManager": "aube@1.36.0",
-    "dependencies": {
+        "oxlint-tsgolint": "catalog:",
         "typescript": "catalog:"
-    }
+    },
+    "packageManager": "aube@1.36.0"
 }

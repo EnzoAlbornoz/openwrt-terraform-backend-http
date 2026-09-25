@@ -1,6 +1,9 @@
 {
     "editor.formatOnSave": true,
     "editor.defaultFormatter": "oxc.oxc-vscode",
+    "editor.codeActionsOnSave": {
+        "source.fixAll.oxc": "always"
+    },
     "github.copilot.chat.commitMessageGeneration.instructions": [
         {
             "file": ".copilot-commit-message-instructions.md"
