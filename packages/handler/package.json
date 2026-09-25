@@ -16,5 +16,8 @@
         "oxlint": "catalog:",
         "oxlint-tsgolint": "catalog:"
     },
-    "packageManager": "aube@1.36.0"
+    "packageManager": "aube@1.36.0",
+    "dependencies": {
+        "typescript": "catalog:"
+    }
 }
