@@ -9,7 +9,7 @@
         // See also https://aka.ms/tsconfig/module
         "module": "nodenext",
         "target": "esnext",
-        "types": ["ucode"],
+        "types": ["ucode", "ucode/uhttpd"],
         "noLib": true,
 
         // Other Outputs
