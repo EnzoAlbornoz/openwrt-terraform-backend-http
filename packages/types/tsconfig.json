@@ -1,0 +1,15 @@
+{
+    // Visit https://aka.ms/tsconfig to read more about this file
+    "compilerOptions": {
+        // Environment Settings
+        // index.d.ts replaces the built-in libraries
+        "target": "esnext",
+        "noLib": true,
+        "types": [],
+        "noEmit": true,
+
+        // Recommended Options
+        "strict": true
+    },
+    "include": ["index.d.ts"]
+}
