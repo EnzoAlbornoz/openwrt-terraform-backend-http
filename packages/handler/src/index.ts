@@ -1,17 +1,13 @@
-import { pathSegments, send, serve } from "./http.js";
+import { createApp, getRouterParams, serve } from "./http.js";
 
-global.handle_request = serve((req) => {
-    // Parse URL as /<workspace>/<state> format
-    const path = pathSegments(req);
-
-    if (path == null || length(path) != 2) {
-        send(req, 404);
-        return;
-    }
-
-    const workspace = path[0] as string;
-    const state = path[1] as string;
+// Routes are relative to the uhttpd prefix: /<workspace>/<state>
+const app = createApp().all("/:workspace/:state", (event) => {
+    const params = getRouterParams(event, { decode: true });
 
     // Handle the request based on workspace and state
-    send(req, 501, workspace + "/" + state + "\n", "text/plain");
+    event.res.status = 501;
+
+    return params["workspace"] + "/" + params["state"] + "\n";
 });
+
+serve(app);
