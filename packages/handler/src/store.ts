@@ -1,27 +1,30 @@
 /**
  * File storage for Terraform states and their locks.
  *
- * - States are kept in `STATE_DIR/<workspace>/<name>.tfstate`. A new state
+ * - States are kept in `<stateDir>/<workspace>/<name>.tfstate`. A new state
  *   is written to a temporary file, then renamed over the old one, so
  *   readers never see a partial state and need no locking.
- * - Locks are kept in `LOCK_DIR/<workspace>/<name>.lock`, holding the lock
+ * - Locks are kept in `<lockDir>/<workspace>/<name>.lock`, holding the lock
  *   info JSON sent by Terraform verbatim. The lock directory is on tmpfs, so
  *   locks do not survive a reboot.
  * - uhttpd serves every request in its own process, so checking a lock and
  *   acting on it runs under an exclusive `flock()` of
- *   `LOCK_DIR/<workspace>/<name>.mutex` (see `withStateMutex()`).
+ *   `<lockDir>/<workspace>/<name>.mutex` (see `withStateMutex()`).
  */
 
 import { error, lstat, mkdir, open, readfile, rename, stat, unlink, type FileHandle } from "fs";
 
-/** Where states are persisted. */
-export const STATE_DIR = "/etc/terraform";
-
-/** Where locks are kept. */
-export const LOCK_DIR = "/var/run/terraform";
+/** Where states and locks are kept, as absolute paths without trailing `/`. */
+export interface Storage {
+    /** Where states are persisted. */
+    stateDir: string;
+    /** Where locks are kept. */
+    lockDir: string;
+}
 
 /** Identifies a state. Both names are validated with `isValidName()`. */
 export interface StateRef {
+    storage: Storage;
     workspace: string;
     name: string;
 }
@@ -119,7 +122,7 @@ function assertMissing(path: string, what: string): void {
 // ---------------------------------------------------------------------------
 
 function lockDir(ref: StateRef): string {
-    return LOCK_DIR + "/" + ref.workspace;
+    return ref.storage.lockDir + "/" + ref.workspace;
 }
 
 function lockPath(ref: StateRef): string {
@@ -205,7 +208,7 @@ export function removeLock(ref: StateRef): void {
 // ---------------------------------------------------------------------------
 
 function stateDir(ref: StateRef): string {
-    return STATE_DIR + "/" + ref.workspace;
+    return ref.storage.stateDir + "/" + ref.workspace;
 }
 
 function statePath(ref: StateRef): string {

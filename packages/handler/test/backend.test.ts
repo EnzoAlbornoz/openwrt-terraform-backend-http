@@ -18,6 +18,7 @@ import {
     type Sandbox,
 } from "./harness.ts";
 import { output } from "./ucode/runtime.ts";
+import { setConfig } from "./ucode/uci.ts";
 
 const ADDRESS = "/home/network";
 
@@ -27,6 +28,7 @@ before(loadHandler);
 
 beforeEach(() => {
     sandbox = createSandbox();
+    setConfig({});
 });
 
 afterEach(() => {
@@ -383,16 +385,62 @@ describe("locking", () => {
     });
 });
 
-describe("requests", () => {
-    it("require an Authorization header", () => {
-        const client = tofuClient(ADDRESS, { auth: false });
+describe("config", () => {
+    it("stores states and locks in the configured directories", () => {
+        setConfig({
+            "terraform-backend": {
+                storage: {
+                    ".type": "storage",
+                    state_dir: "/mnt/usb/tf/",
+                    lock_dir: "/tmp/tf-locks",
+                },
+            },
+        });
 
-        assert.equal(client.get().status, 401);
-        assert.equal(client.put(state(1)).status, 401);
-        assert.equal(client.lock(lockInfo("holder")).status, 401);
-        assert.equal(storedState(), null);
+        const client = tofuClient(ADDRESS);
+
+        assert.equal(client.lock(lockInfo("holder")).status, 200);
+        assert.equal(client.put(state(1), "holder").status, 200);
+
+        assert.equal(
+            readFileSync(sandbox.path("/mnt/usb/tf/home/network.tfstate"), "utf8"),
+            state(1),
+        );
+        assert.equal(existsSync(sandbox.path("/tmp/tf-locks/home/network.lock")), true);
+        assert.equal(existsSync(sandbox.path("/etc/terraform")), false);
+        assert.equal(existsSync(lockPath()), false);
     });
 
+    it("rejects states larger than the configured size", () => {
+        setConfig({ "terraform-backend": { storage: { max_state_size: "1K" } } });
+
+        const client = tofuClient(ADDRESS);
+
+        assert.equal(client.put(state(1, { padding: "x".repeat(1024) })).status, 413);
+        assert.equal(client.put(state(1)).status, 200);
+    });
+
+    it("fails requests on invalid settings", () => {
+        const invalid = [
+            { state_dir: "relative/path" },
+            { lock_dir: "/" },
+            { state_dir: ["/a", "/b"] },
+            { max_state_size: "16 MiB" },
+            { max_state_size: "0" },
+        ];
+
+        for (const storage of invalid) {
+            setConfig({ "terraform-backend": { storage } });
+
+            assert.equal(tofuClient(ADDRESS).put(state(1)).status, 500, JSON.stringify(storage));
+            assert.match(output.stderr.splice(0).join(""), /Invalid terraform-backend\.storage\./);
+        }
+
+        assert.equal(storedState(), null);
+    });
+});
+
+describe("requests", () => {
     it("reject unsafe workspace and state names", () => {
         const paths = [
             "/%2e%2e/network",

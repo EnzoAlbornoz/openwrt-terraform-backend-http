@@ -14,6 +14,7 @@
 /// <reference path="./modules/fs.d.ts" />
 /// <reference path="./modules/log.d.ts" />
 /// <reference path="./modules/math.d.ts" />
+/// <reference path="./modules/uci.d.ts" />
 /// <reference path="./modules/zlib.d.ts" />
 
 // ---------------------------------------------------------------------------

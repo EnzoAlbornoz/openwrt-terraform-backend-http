@@ -146,7 +146,7 @@ export interface Response {
     json(): unknown;
 }
 
-const PREFIX = "/tfstate";
+const PREFIX = "/terraform";
 
 function parseResponse(method: string, raw: Buffer): Response {
     const end = raw.indexOf("\r\n\r\n");
@@ -210,7 +210,7 @@ export function request(options: RequestOptions): Response {
         GATEWAY_INTERFACE: "CGI/1.1",
         SERVER_SOFTWARE: "uhttpd",
         SCRIPT_NAME: PREFIX,
-        SCRIPT_FILENAME: "/usr/share/tfstate/index.uc",
+        SCRIPT_FILENAME: "/usr/share/ucode/terraform-backend/handler.uc",
         QUERY_STRING: query < 0 ? "" : options.path.slice(query + 1),
         REQUEST_URI: PREFIX + options.path,
         SERVER_PROTOCOL: "HTTP/1.1",

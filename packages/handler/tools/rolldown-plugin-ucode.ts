@@ -15,6 +15,8 @@ interface Edit {
  *   `1e3`, which ucode parses as a double (`1e3 / 3` is `333.33`, not `333`).
  * - The chunk is wrapped in a single `{% ... %}` block, since uhttpd parses
  *   the handler in template mode.
+ * - The build fails on identifiers ucode cannot parse (see
+ *   `invalidIdentifiers()`).
  *
  * This runs in `generateBundle` because tsdown's default minify pass reprints
  * the output of `renderChunk` (undoing the literal fix), and `postBanner` is
@@ -28,7 +30,15 @@ export function ucodeTemplate(): Rolldown.Plugin {
             for (const chunk of Object.values(bundle)) {
                 if (chunk.type !== "chunk") continue;
 
-                const edits = integerLiteralEdits(this.parse(chunk.code));
+                const program = this.parse(chunk.code);
+                const invalid = invalidIdentifiers(program);
+
+                if (invalid.length > 0)
+                    this.error(
+                        `${chunk.fileName}: identifiers invalid in ucode: ${invalid.join(", ")}`,
+                    );
+
+                const edits = integerLiteralEdits(program);
 
                 // Nothing may precede `{%`: text outside the block is printed
                 // rather than executed.
@@ -38,9 +48,8 @@ export function ucodeTemplate(): Rolldown.Plugin {
     };
 }
 
-/** Reprints integer-valued numeric literals (`1e3`, `0x10`) in decimal. */
-function integerLiteralEdits(program: Program): Edit[] {
-    const edits: Edit[] = [];
+/** Calls `visit` for every AST node. */
+function walk(program: Program, visit: (node: Record<string, unknown>) => void): void {
     const pending: unknown[] = [program];
 
     while (pending.length > 0) {
@@ -54,6 +63,36 @@ function integerLiteralEdits(program: Program): Edit[] {
 
         const node = value as Record<string, unknown>;
 
+        visit(node);
+        pending.push(...Object.values(node));
+    }
+}
+
+/**
+ * Identifiers ucode cannot parse: it only allows letters, digits and `_`,
+ * but rolldown deconflicts names by appending `$1` (e.g. when two modules
+ * import `error` from different ucode modules). Import one of them as a
+ * namespace (`import * as uci from "uci"`) to avoid the clash.
+ */
+function invalidIdentifiers(program: Program): string[] {
+    const names = new Set<string>();
+
+    walk(program, (node) => {
+        if (
+            node["type"] === "Identifier" &&
+            !/^[A-Za-z_][A-Za-z0-9_]*$/.test(node["name"] as string)
+        )
+            names.add(node["name"] as string);
+    });
+
+    return [...names];
+}
+
+/** Reprints integer-valued numeric literals (`1e3`, `0x10`) in decimal. */
+function integerLiteralEdits(program: Program): Edit[] {
+    const edits: Edit[] = [];
+
+    walk(program, (node) => {
         if (
             node["type"] === "Literal" &&
             typeof node["value"] === "number" &&
@@ -65,11 +104,8 @@ function integerLiteralEdits(program: Program): Edit[] {
                 end: node["end"] as number,
                 text: String(node["value"]),
             });
-            continue;
         }
-
-        pending.push(...Object.values(node));
-    }
+    });
 
     return edits;
 }

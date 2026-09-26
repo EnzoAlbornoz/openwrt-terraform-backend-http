@@ -1,0 +1,18 @@
+#!/bin/sh
+# Serve the handler under /terraform in the main uhttpd instance, unless it
+# is already registered (possibly under another prefix, chosen by the user).
+
+handler=/usr/share/ucode/terraform-backend/handler.uc
+
+uci -q get uhttpd.main > /dev/null || exit 0
+
+for entry in $(uci -q get uhttpd.main.ucode_prefix); do
+	case "$entry" in
+	*="$handler") exit 0 ;;
+	esac
+done
+
+uci add_list uhttpd.main.ucode_prefix="/terraform=$handler"
+uci commit uhttpd
+
+exit 0

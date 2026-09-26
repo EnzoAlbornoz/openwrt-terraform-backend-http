@@ -17,9 +17,9 @@
  *
  * ```hcl
  * backend "http" {
- *   address        = "https://router/tfstate/<workspace>/<state>"
- *   lock_address   = "https://router/tfstate/<workspace>/<state>/lock"
- *   unlock_address = "https://router/tfstate/<workspace>/<state>/lock"
+ *   address        = "https://router/terraform/<workspace>/<state>"
+ *   lock_address   = "https://router/terraform/<workspace>/<state>/lock"
+ *   unlock_address = "https://router/terraform/<workspace>/<state>/lock"
  *   lock_method    = "POST"
  *   unlock_method  = "DELETE"
  * }
@@ -28,12 +28,15 @@
  * While a state is locked, writing or deleting it requires the lock ID in
  * the `ID` query parameter (the client sends it with every write).
  *
+ * Where states are stored is configured with UCI, see `config.ts`.
+ *
  * @see https://github.com/opentofu/opentofu/blob/main/internal/backend/remote-state/http/client.go
  */
 
 import { md5_file } from "digest";
 import { unlink } from "fs";
 
+import { loadConfig, type Config } from "./config.js";
 import {
     assertBodySize,
     createApp,
@@ -61,11 +64,15 @@ import {
     type StateRef,
 } from "./store.js";
 
-/** Largest accepted state. */
-const MAX_STATE_SIZE = 16 * 1024 * 1024;
-
 /** Largest accepted lock info. */
 const MAX_LOCK_SIZE = 64 * 1024;
+
+/** The settings, read on first use in a request. */
+function config(event: H3Event): Config {
+    if (event.context["config"] == null) event.context["config"] = loadConfig();
+
+    return event.context["config"] as Config;
+}
 
 /** The state addressed by the route params; throws a 400 error on invalid names. */
 function stateRef(event: H3Event): StateRef {
@@ -75,7 +82,7 @@ function stateRef(event: H3Event): StateRef {
     if (!isValidName(workspace) || !isValidName(name))
         throwHTTPError(400, "Invalid workspace or state name");
 
-    return { workspace, name };
+    return { storage: config(event).storage, workspace, name };
 }
 
 /** The lock ID the client claims to hold, from the `ID` query parameter. */
@@ -168,7 +175,7 @@ function putState(event: H3Event): unknown {
     const ref = stateRef(event);
     const id = requestLockId(event);
 
-    assertBodySize(event, MAX_STATE_SIZE);
+    assertBodySize(event, config(event).maxStateSize);
 
     const upload = createStateUpload(ref);
     let closed = false;
@@ -269,16 +276,8 @@ function unlockState(event: H3Event): unknown {
     return conflict != null ? locked(event, conflict) : null;
 }
 
+// TODO: Authenticate requests before the first public release.
 const app = createApp()
-    // Authentication Middleware
-    .use((event, next) => {
-        // TODO: Implement authentication logic here
-        // TODO: Not intended to do now
-        const authorization = event.req.headers["authorization"];
-        if (!authorization) throwHTTPError(401);
-
-        return next();
-    })
     .post("/:workspace/:state/lock", lockState)
     .delete("/:workspace/:state/lock", unlockState)
     .get("/:workspace/:state", getState)

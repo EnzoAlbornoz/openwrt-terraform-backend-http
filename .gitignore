@@ -150,3 +150,7 @@ vite.config.ts.timestamp-*
 
 # Mise Config
 .vscode/mise-tools/
+
+# OpenWrt packaging: the handler is copied in by CI, SDK output
+openwrt/feed/terraform-backend-http/files/handler.uc
+bin/
