@@ -4,9 +4,16 @@
     "editor.codeActionsOnSave": {
         "source.fixAll.oxc": "always"
     },
-    "oxc.useExecPath": true,
+
+    // Manual config for now
+    "mise.configureExtensionsAutomatically": true,
+    "mise.configureExtensionsUseSymLinks": true,
+    "mise.configureExtensionsAutomaticallyIncludeList": [],
     "oxc.path.oxfmt": "packages/handler/node_modules/oxfmt/bin/oxfmt",
     "oxc.path.oxlint": "packages/handler/node_modules/oxlint/bin/oxlint",
+    "oxc.path.node": "./.vscode/mise-tools/node.exe",
+    // --
+
     "github.copilot.chat.commitMessageGeneration.instructions": [
         {
             "file": ".copilot-commit-message-instructions.md"
