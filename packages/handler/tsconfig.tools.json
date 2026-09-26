@@ -1,0 +1,28 @@
+{
+    // Build and lint tooling (tsdown config, rolldown/oxlint plugins).
+    // Runs on Node, so it gets the regular ES lib instead of the ucode environment.
+    "compilerOptions": {
+        "composite": true,
+        "emitDeclarationOnly": true,
+        "outDir": "./node_modules/.cache/tsconfig.tools",
+        "tsBuildInfoFile": "./node_modules/.cache/tsconfig.tools/tsconfig.tsbuildinfo",
+
+        "module": "nodenext",
+        "target": "esnext",
+        "lib": ["esnext"],
+        "types": [],
+        "allowImportingTsExtensions": true,
+        "rewriteRelativeImportExtensions": true,
+
+        "strict": true,
+        "noUncheckedIndexedAccess": true,
+        "exactOptionalPropertyTypes": true,
+        "noUnusedLocals": true,
+        "noUnusedParameters": true,
+        "verbatimModuleSyntax": true,
+        "isolatedModules": true,
+        "moduleDetection": "force",
+        "skipLibCheck": true
+    },
+    "include": ["tsdown.config.ts", "tools"]
+}

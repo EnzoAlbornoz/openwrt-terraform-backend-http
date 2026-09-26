@@ -1,7 +1,32 @@
 {
     "extends": ["../../.oxlintrc.json"],
     "$schema": "./node_modules/oxlint/configuration_schema.json",
+    "jsPlugins": ["./tools/oxlint-plugin-ucode.ts"],
     "rules": {
         "no-var": "deny"
-    }
+    },
+    "overrides": [
+        {
+            // Handler sources are compiled to ucode; tooling runs on Node.
+            "files": ["src/**"],
+            "rules": {
+                "ucode/no-unsupported-syntax": "deny",
+                "ucode/no-unsupported-regex": "deny",
+                // Declarations are not hoisted in ucode: a function called
+                // before its declaration is still unbound, even from inside
+                // another function body.
+                "no-use-before-define": [
+                    "deny",
+                    {
+                        "functions": true,
+                        "variables": true,
+                        "typedefs": false,
+                        "ignoreTypeReferences": true
+                    }
+                ],
+                // ucode has no `arguments` object.
+                "prefer-rest-params": "deny"
+            }
+        }
+    ]
 }

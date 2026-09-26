@@ -1,18 +1,19 @@
 import { defineConfig } from "tsdown";
 
-// uhttpd loads ucode handlers in template mode: everything outside `{% ... %}`
-// is emitted as literal text. Wrap the whole bundle in a single statement block.
+import { ucodeTemplate } from "./tools/rolldown-plugin-ucode.ts";
+
 export default defineConfig({
     entry: ["src/index.ts"],
     platform: "neutral",
     format: "esm",
-    // Anything the bundler appends after the footer (e.g. a sourceMappingURL
-    // comment) would land outside the block and be printed as text.
+    // ucodeTemplate() wraps the chunk in `{% %}` as the last step; anything
+    // appended afterwards (e.g. a sourceMappingURL comment) would land outside
+    // the block.
     sourcemap: false,
     dts: false,
     outExtensions: () => ({ js: ".uc" }),
-    // The banner must be the very first bytes of the file: any leading
-    // whitespace would be written to the response as template text.
-    banner: '{%\n"use strict";\n',
-    footer: "%}",
+    // Leave bare imports (fs, uci, luci.http, ...) as static imports; ucode
+    // loads them from its module search path (extend it with `ucode -L`).
+    deps: { neverBundle: true },
+    plugins: [ucodeTemplate()],
 });
