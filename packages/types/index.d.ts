@@ -9,6 +9,13 @@
  * @see https://ucode.mein.io/module-core.html
  */
 
+/// <reference path="./modules/debug.d.ts" />
+/// <reference path="./modules/digest.d.ts" />
+/// <reference path="./modules/fs.d.ts" />
+/// <reference path="./modules/log.d.ts" />
+/// <reference path="./modules/math.d.ts" />
+/// <reference path="./modules/zlib.d.ts" />
+
 // ---------------------------------------------------------------------------
 // Internal brands
 // ---------------------------------------------------------------------------
