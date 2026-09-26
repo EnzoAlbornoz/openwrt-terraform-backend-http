@@ -10,7 +10,12 @@
     },
     "type": "module",
     "exports": {
-        "types": "./index.d.ts"
+        ".": {
+            "types": "./index.d.ts"
+        },
+        "./uhttpd": {
+            "types": "./integrations/uhttpd.d.ts"
+        }
     },
     "scripts": {
         "fmt": "oxfmt",

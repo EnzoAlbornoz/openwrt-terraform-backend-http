@@ -11,5 +11,5 @@
         // Recommended Options
         "strict": true
     },
-    "include": ["index.d.ts", "modules/*.d.ts"]
+    "include": ["index.d.ts", "modules/*.d.ts", "integrations/*.d.ts"]
 }
