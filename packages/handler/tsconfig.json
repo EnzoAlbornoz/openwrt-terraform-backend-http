@@ -39,5 +39,5 @@
         "skipLibCheck": true
     },
     "include": ["src"],
-    "references": [{ "path": "./tsconfig.tools.json" }]
+    "references": [{ "path": "./tsconfig.tools.json" }, { "path": "./tsconfig.test.json" }]
 }

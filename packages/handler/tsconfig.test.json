@@ -1,0 +1,32 @@
+{
+    // Tests run on Node (node:test), so they get the regular ES lib and Node
+    // types instead of the ucode environment. They load the ucode sources
+    // through a computed import (see test/harness.ts), so those are not
+    // checked against Node's libraries here.
+    "compilerOptions": {
+        "composite": true,
+        "emitDeclarationOnly": true,
+        "outDir": "./node_modules/.cache/tsconfig.test",
+        "tsBuildInfoFile": "./node_modules/.cache/tsconfig.test/tsconfig.tsbuildinfo",
+
+        "module": "nodenext",
+        "target": "esnext",
+        "lib": ["esnext"],
+        "types": ["node"],
+        "allowImportingTsExtensions": true,
+        "rewriteRelativeImportExtensions": true,
+        // Node runs the tests by stripping types.
+        "erasableSyntaxOnly": true,
+
+        "strict": true,
+        "noUncheckedIndexedAccess": true,
+        "exactOptionalPropertyTypes": true,
+        "noUnusedLocals": true,
+        "noUnusedParameters": true,
+        "verbatimModuleSyntax": true,
+        "isolatedModules": true,
+        "moduleDetection": "force",
+        "skipLibCheck": true
+    },
+    "include": ["test"]
+}

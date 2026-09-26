@@ -27,6 +27,13 @@
                 // ucode has no `arguments` object.
                 "prefer-rest-params": "deny"
             }
+        },
+        {
+            // node:test's describe() and it() return promises the runner awaits.
+            "files": ["test/**/*.test.ts"],
+            "rules": {
+                "typescript/no-floating-promises": "off"
+            }
         }
     ]
 }

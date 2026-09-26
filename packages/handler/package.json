@@ -14,9 +14,11 @@
         "fmt:check": "oxfmt --check",
         "lint": "oxlint",
         "lint:fix": "oxlint --fix",
-        "build": "tsdown"
+        "build": "tsdown",
+        "test": "node --import ./test/setup.ts --test \"test/**/*.test.ts\""
     },
     "devDependencies": {
+        "@types/node": "catalog:",
         "@types/ucode": "workspace:",
         "oxfmt": "catalog:",
         "oxlint": "catalog:",

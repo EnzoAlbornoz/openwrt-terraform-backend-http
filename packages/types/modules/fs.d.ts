@@ -447,8 +447,12 @@ declare module "fs" {
      */
     export function lstat(path: string): FileStatResult | null;
 
-    /** Create a new directory, returns `null` on error. */
-    export function mkdir(path: string): boolean | null;
+    /**
+     * Create a new directory, returns `null` on error.
+     *
+     * @param mode Permission bits, masked by the umask. Defaults to `0o777`.
+     */
+    export function mkdir(path: string, mode?: number): boolean | null;
 
     /**
      * Create a unique temporary directory and return its path.
