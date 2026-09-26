@@ -14,7 +14,7 @@
         "fmt:check": "oxfmt --check",
         "lint": "oxlint",
         "lint:fix": "oxlint --fix",
-        "build": "tsdown --platform neutral"
+        "build": "tsdown"
     },
     "devDependencies": {
         "@types/ucode": "workspace:",
