@@ -9,23 +9,29 @@
  *   that can be precomputed (e.g. status lines) is built at load time.
  * - The response goes to stdout, which is fully buffered (8 KiB) and flushed
  *   by `exit()` after the callback returns: calling `uhttpd.flush()` only adds
- *   a syscall. Each response is written with a single `uhttpd.send()` call
- *   whose arguments are `fwrite()` one after another, so headers and body are
- *   never concatenated into an intermediate string.
+ *   a syscall. Bodies are written as-is after the headers, never concatenated
+ *   with them into an intermediate string.
  * - uhttpd parses the CGI headers itself. `Status:` is only honored in the
  *   exact `NNN Reason` form (otherwise the response silently becomes
  *   `200 OK`), and without `Content-Length` an HTTP/1.1 response is re-encoded
- *   with chunked transfer encoding, so `Content-Length` is always sent (except
- *   for 204/304, which uhttpd never chunks).
- * - The request body is read from stdin with `uhttpd.recv(n)`, which loops
- *   internally until it has `n` bytes or a read comes up short. Its default
- *   `n` is `BUFSIZ` (1 KiB on musl), so the remaining length is always passed
- *   explicitly to keep the number of calls down.
+ *   with chunked transfer encoding, so `Content-Length` is sent whenever the
+ *   length is known (except for 204/304, which uhttpd never chunks).
+ * - The request body arrives on stdin, a blocking pipe that uhttpd closes once
+ *   the body is complete. It is read with `fs.stdin.read(n)` rather than
+ *   `uhttpd.recv(n)`: both return up to `n` bytes, but `recv()` issues one
+ *   `read()` per `BUFSIZ` (1 KiB on musl) while `fread()` reads straight into
+ *   its buffer, taking about one syscall per pipe write.
+ * - Large bodies (Terraform states can be several MiB) are streamed in
+ *   `CHUNK_SIZE` pieces in both directions, so memory use does not grow with
+ *   the body size. `CHUNK_SIZE` is the default pipe capacity, the most either
+ *   pipe can hold at once.
  * - Uncaught exceptions are answered by uhttpd with a 500 that includes the
  *   script path and source context; `serve()` answers them itself instead.
  *
  * @see https://github.com/openwrt/uhttpd/blob/master/ucode.c
  */
+
+import { open, stdin } from "fs";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -41,11 +47,21 @@ export interface HttpRequest {
     readonly method: UhttpdRequestMethod;
     /** The path after the matched prefix, still URL-encoded, e.g. `/a/b`. */
     readonly path: string;
-    /** Whether a response has been written. */
+    /** Whether the response has been started. */
     sent: boolean;
 }
 
 export type HttpHandler = (req: HttpRequest) => void;
+
+/**
+ * Why a request body could not be consumed, as the status to answer with:
+ * 413 if it exceeds the limit, 400 if it ended early (the client went away),
+ * 500 if the `streamBody()` callback aborted.
+ */
+export type BodyError = 400 | 413 | 500;
+
+/** Size of the pieces bodies are streamed in: the default pipe capacity. */
+const CHUNK_SIZE = 65536;
 
 // ---------------------------------------------------------------------------
 // Status lines
@@ -175,50 +191,112 @@ export function query(req: HttpRequest): Record<string, string> | null {
 }
 
 /**
- * Read the request body. stdin can only be consumed once, so call this at
- * most once per request.
- *
- * Returns `null` if the body is larger than `maxLength` bytes (answer with
- * 413) or ended early because the client went away. A body larger than
- * `maxLength` is rejected from its `Content-Length` without being read.
- *
- * @param maxLength Maximum body size in bytes; must be an integer.
+ * Read the request body from stdin, passing it to `onChunk` in pieces of at
+ * most `chunkSize` bytes. A body larger than `maxLength` is rejected from
+ * its `Content-Length` without being read.
  */
-export function readBody(req: HttpRequest, maxLength: number): string | null {
+function receive(
+    req: HttpRequest,
+    maxLength: number,
+    chunkSize: number,
+    onChunk: (chunk: string) => unknown,
+): BodyError | null {
     const contentLength = req.env.CONTENT_LENGTH;
     let expected: number;
 
     if (contentLength != null) {
         expected = int(contentLength);
 
-        if (expected > maxLength) return null;
+        if (expected > maxLength) return 413;
     } else if (req.env.headers["transfer-encoding"] != null) {
         // Chunked: read one byte past the limit to detect an oversized body.
         expected = maxLength + 1;
     } else {
-        return "";
+        return null;
     }
 
-    let first: string | null = null;
-    let chunks: string[] | null = null;
     let received = 0;
 
     while (received < expected) {
-        const chunk = uhttpd.recv(expected - received);
+        const remaining = expected - received;
+        const chunk = stdin.read(remaining < chunkSize ? remaining : chunkSize);
 
-        if (chunk == null) break;
+        if (chunk == null || chunk == "") break;
 
         received += length(chunk);
 
-        // Most bodies arrive in one chunk; only join when there are several,
-        // since repeated `+=` would copy the body over and over.
-        if (first == null) first = chunk;
-        else if (chunks == null) chunks = [first, chunk];
-        else push(chunks, chunk);
+        if (received > maxLength) return 413;
+        if (onChunk(chunk) === false) return 500;
     }
 
-    if (received > maxLength) return null;
-    if (contentLength != null && received < expected) return null;
+    if (contentLength != null && received < expected) return 400;
+
+    return null;
+}
+
+/**
+ * Stream the request body to `onChunk` in pieces of at most `CHUNK_SIZE`
+ * bytes, so memory use stays constant whatever the body size. Returning
+ * `false` from `onChunk` aborts. stdin can only be consumed once, so call
+ * this (or `readBody()`) at most once per request.
+ *
+ * On error, `onChunk` may already have received part of the body, so discard
+ * what it wrote (e.g. delete the temporary file).
+ *
+ * @param maxLength Maximum body size in bytes; must be an integer.
+ * @returns `null` once the whole body was consumed, else the status to answer
+ *     with.
+ * @example
+ * const tmp = open(path + ".tmp", "w");
+ * const err = streamBody(req, MAX_STATE_SIZE, function (chunk) {
+ *     return tmp.write(chunk) == length(chunk);
+ * });
+ * tmp.close();
+ * if (err != null) {
+ *     unlink(path + ".tmp");
+ *     send(req, err);
+ *     return;
+ * }
+ * rename(path + ".tmp", path);
+ */
+export function streamBody(
+    req: HttpRequest,
+    maxLength: number,
+    onChunk: (chunk: string) => unknown,
+): BodyError | null {
+    return receive(req, maxLength, CHUNK_SIZE, onChunk);
+}
+
+/**
+ * Read the whole request body into memory, for small bodies (e.g. lock
+ * info); use `streamBody()` for large ones. stdin can only be consumed once,
+ * so call this (or `streamBody()`) at most once per request.
+ *
+ * A body with a `Content-Length` is read with a single `fread()` into a
+ * buffer of exactly that size; a chunked one in `CHUNK_SIZE` pieces.
+ *
+ * @param maxLength Maximum body size in bytes; must be an integer.
+ * @returns `null` if the body is larger than `maxLength` (answer with 413) or
+ *     ended early because the client went away.
+ */
+export function readBody(req: HttpRequest, maxLength: number): string | null {
+    let first: string | null = null;
+    let chunks: string[] | null = null;
+
+    const err = receive(
+        req,
+        maxLength,
+        req.env.CONTENT_LENGTH != null ? maxLength + 1 : CHUNK_SIZE,
+        function (chunk: string): void {
+            // Most bodies arrive in one chunk; only join when there are
+            // several, since repeated `+=` would copy the body over and over.
+            if (first == null) first = chunk;
+            else if (chunks == null) chunks = [first, chunk];
+            else push(chunks, chunk);
+        },
+    );
+
+    if (err != null) return null;
 
     return chunks != null ? join("", chunks) : (first ?? "");
 }
@@ -241,11 +319,51 @@ function formatHeaders(headers: HttpHeaders): string {
 }
 
 /**
- * Write the response. `Content-Type` and `Content-Length` are set from the
- * arguments, so `headers` must not contain them (nor `Status`). For `HEAD`
- * requests the body is measured but not written.
+ * Start a response by writing its status line and headers; the body follows
+ * with `writeBody()`. `headers` must not contain `Status`, `Content-Type` or
+ * `Content-Length`.
  *
- * Dies if a response has already been written.
+ * With a `contentLength`, exactly that many bytes must be written, or the
+ * connection gets out of sync. Without one, uhttpd frames the body with
+ * chunked transfer encoding, which costs a little more on the wire.
+ *
+ * Dies if a response has already been started.
+ */
+export function writeHead(
+    req: HttpRequest,
+    status: HttpStatus,
+    contentLength: number | null,
+    contentType?: string | null,
+    headers?: HttpHeaders | null,
+): void {
+    if (req.sent) die("Response already sent");
+
+    req.sent = true;
+
+    uhttpd.send(
+        STATUS_LINES[status],
+        contentType != null ? "Content-Type: " + contentType + "\r\n" : null,
+        contentLength != null && status != 204 && status != 304
+            ? "Content-Length: " + contentLength + "\r\n"
+            : null,
+        headers != null ? formatHeaders(headers) : null,
+        "\r\n",
+    );
+}
+
+/**
+ * Write a piece of the response body, after `writeHead()`. It is written
+ * straight to stdout without being copied. Does nothing for `HEAD` requests.
+ */
+export function writeBody(req: HttpRequest, chunk: string): void {
+    if (!req.sent) die("writeHead() must be called before writeBody()");
+
+    if (req.method != "HEAD") uhttpd.send(chunk);
+}
+
+/**
+ * Write a complete response. For `HEAD` requests the body is measured but
+ * not written.
  *
  * @param contentType Defaults to `application/octet-stream` when there is a
  *     body; ignored when there is none.
@@ -257,33 +375,13 @@ export function send(
     contentType?: string | null,
     headers?: HttpHeaders | null,
 ): void {
-    if (req.sent) die("Response already sent");
-
-    req.sent = true;
-
-    const statusLine = STATUS_LINES[status];
-    const extra = headers != null ? formatHeaders(headers) : null;
-
     if (body == null || body == "") {
-        uhttpd.send(
-            statusLine,
-            extra,
-            status == 204 || status == 304 ? "\r\n" : "Content-Length: 0\r\n\r\n",
-        );
+        writeHead(req, status, 0, null, headers);
         return;
     }
 
-    uhttpd.send(
-        statusLine,
-        "Content-Type: ",
-        contentType ?? "application/octet-stream",
-        "\r\nContent-Length: ",
-        length(body),
-        "\r\n",
-        extra,
-        "\r\n",
-        req.method == "HEAD" ? null : body,
-    );
+    writeHead(req, status, length(body), contentType ?? "application/octet-stream", headers);
+    writeBody(req, body);
 }
 
 /** Write `value` as a JSON response. */
@@ -294,6 +392,58 @@ export function sendJson(
     headers?: HttpHeaders | null,
 ): void {
     send(req, status, sprintf("%J", value), "application/json", headers);
+}
+
+/**
+ * Stream a file as the response body in `CHUNK_SIZE` pieces, so memory use
+ * does not depend on the file size. For `HEAD` requests the file is only
+ * measured.
+ *
+ * The length is taken from the opened file, so replace files by renaming a
+ * new one over them rather than rewriting them in place: a file that shrinks
+ * while it is sent cannot be answered correctly anymore (this dies).
+ *
+ * @returns `false`, with nothing written, if the file cannot be opened.
+ */
+export function sendFile(
+    req: HttpRequest,
+    status: HttpStatus,
+    path: string,
+    contentType?: string | null,
+    headers?: HttpHeaders | null,
+): boolean {
+    const file = open(path, "r");
+
+    if (file == null) return false;
+
+    file.seek(0, 2);
+
+    const size = file.tell();
+
+    if (size == null) {
+        file.close();
+        die("Cannot determine the size of " + path);
+    }
+
+    file.seek(0, 0);
+    writeHead(req, status, size, contentType ?? "application/octet-stream", headers);
+
+    let remaining = req.method == "HEAD" ? 0 : size;
+
+    while (remaining > 0) {
+        const chunk = file.read(remaining < CHUNK_SIZE ? remaining : CHUNK_SIZE);
+
+        if (chunk == null || chunk == "") break;
+
+        uhttpd.send(chunk);
+        remaining -= length(chunk);
+    }
+
+    file.close();
+
+    if (remaining > 0) die(path + " was truncated while being sent");
+
+    return true;
 }
 
 // ---------------------------------------------------------------------------
