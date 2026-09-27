@@ -23,14 +23,15 @@ define Package/terraform-backend-http
   CATEGORY:=Network
   SUBMENU:=Web Servers/Proxies
   TITLE:=Terraform/OpenTofu HTTP state backend for uhttpd
-  DEPENDS:=+uhttpd +uhttpd-mod-ucode +ucode-mod-digest +ucode-mod-fs +ucode-mod-uci
+  DEPENDS:=+uhttpd +uhttpd-mod-ucode +ucode-mod-digest +ucode-mod-fs +ucode-mod-log +ucode-mod-uci
   PKGARCH:=all
 endef
 
 define Package/terraform-backend-http/description
  Stores Terraform and OpenTofu states on the router, with locking, through
  their "http" backend. Served by uhttpd under /terraform; states are kept in
- /etc/terraform by default (see /etc/config/terraform-backend).
+ /etc/terraform by default (see /etc/config/terraform-backend). Clients
+ authenticate as users created with terraform-backend-user.
 endef
 
 define Package/terraform-backend-http/conffiles
@@ -51,6 +52,8 @@ endef
 define Package/terraform-backend-http/install
 	$(INSTALL_DIR) $(1)/usr/share/ucode/terraform-backend
 	$(INSTALL_DATA) ./files/handler.uc $(1)/usr/share/ucode/terraform-backend/handler.uc
+	$(INSTALL_DIR) $(1)/usr/sbin
+	$(INSTALL_BIN) ./files/terraform-backend-user $(1)/usr/sbin/terraform-backend-user
 	$(INSTALL_DIR) $(1)/etc/config
 	$(INSTALL_CONF) ./files/terraform-backend.config $(1)/etc/config/terraform-backend
 	$(INSTALL_DIR) $(1)/etc/uci-defaults

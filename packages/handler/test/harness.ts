@@ -132,6 +132,8 @@ export interface RequestOptions {
     body?: string | Buffer | null;
     /** Send the body without `Content-Length`, as with chunked encoding. */
     chunked?: boolean;
+    /** Whether the request arrives over TLS (default `true`). */
+    https?: boolean | undefined;
 }
 
 export interface Response {
@@ -227,6 +229,7 @@ export function request(options: RequestOptions): Response {
         headers,
     };
 
+    if (options.https !== false) env["HTTPS"] = "on";
     if (headers["content-length"] != null) env["CONTENT_LENGTH"] = headers["content-length"];
     if (headers["content-type"] != null) env["CONTENT_TYPE"] = headers["content-type"];
 
@@ -281,11 +284,26 @@ export function forceUnlockInfo(id: string): LockInfo {
     };
 }
 
+/** The credentials `tofuClient()` sends by default. */
+export const USERNAME = "tofu";
+export const PASSWORD = "secret";
+
+/** An `Authorization` header with basic auth credentials. */
+export function basicAuth(username = USERNAME, password = PASSWORD): string {
+    return "Basic " + Buffer.from(username + ":" + password).toString("base64");
+}
+
 export interface ClientOptions {
     /** Defaults to `POST`, like the client's `update_method`. */
     updateMethod?: string;
+    /** Defaults to `USERNAME`. */
+    username?: string;
+    /** Defaults to `PASSWORD`. */
+    password?: string;
     /** Send basic auth credentials (default `true`). */
     auth?: boolean;
+    /** Whether requests arrive over TLS (default `true`). */
+    https?: boolean;
 }
 
 /**
@@ -301,7 +319,7 @@ export function tofuClient(address: string, options: ClientOptions = {}) {
         const headers: Record<string, string> = {};
 
         if (options.auth !== false)
-            headers["authorization"] = "Basic " + Buffer.from("tofu:secret").toString("base64");
+            headers["authorization"] = basicAuth(options.username, options.password);
 
         // The client only sends a body, with these headers, when it has data.
         if (data != null && data.length > 0) {
@@ -314,6 +332,7 @@ export function tofuClient(address: string, options: ClientOptions = {}) {
             path,
             headers,
             body: data != null && data.length > 0 ? data : null,
+            https: options.https,
         });
     }
 

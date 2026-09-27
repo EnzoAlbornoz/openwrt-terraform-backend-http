@@ -1,0 +1,115 @@
+#!/bin/sh
+# Manages the users of the Terraform/OpenTofu HTTP state backend, stored in
+# /etc/config/terraform-backend. Passwords are random tokens, stored as
+# 'sha256$<salt>$<hex sha256 of salt + password>' and only shown once.
+
+CONFIG=terraform-backend
+
+usage() {
+	cat >&2 <<EOF
+Usage: $0 <command> ...
+
+  add <user> [<workspace>...]  Create a user with a random password. Without
+                               workspaces, the user may access all of them.
+  passwd <user>                Replace the password of a user.
+  del <user>                   Remove a user.
+  list                         List the users and their workspaces.
+
+Change the workspaces of a user with uci, e.g.:
+  uci add_list $CONFIG.<user>.workspace=<workspace>; uci commit $CONFIG
+EOF
+	exit 1
+}
+
+fail() {
+	echo "$0: $*" >&2
+	exit 1
+}
+
+check_user() {
+	case "$1" in
+	'' | *[!A-Za-z0-9_]*) fail "invalid user name '$1': use letters, digits and _" ;;
+	esac
+}
+
+check_workspace() {
+	case "$1" in
+	'' | [.-]* | *[!A-Za-z0-9._-]*) fail "invalid workspace name '$1'" ;;
+	esac
+	[ "${#1}" -le 128 ] || fail "invalid workspace name '$1': longer than 128 characters"
+}
+
+is_user() {
+	[ "$(uci -q get "$CONFIG.$1")" = user ]
+}
+
+random_hex() {
+	hexdump -v -n "$1" -e '/1 "%02x"' /dev/urandom
+}
+
+# Generate a random $password and its $stored form, before changing anything.
+generate_password() {
+	password=$(random_hex 32)
+	salt=$(random_hex 16)
+	hash=$(printf '%s' "$salt$password" | sha256sum | cut -d ' ' -f 1)
+
+	[ "${#password}" -eq 64 ] && [ "${#salt}" -eq 32 ] && [ "${#hash}" -eq 64 ] ||
+		fail "cannot generate a password"
+
+	stored="sha256\$$salt\$$hash"
+}
+
+command=$1
+[ $# -gt 0 ] && shift
+
+case "$command" in
+add)
+	[ $# -ge 1 ] || usage
+	user=$1
+	shift
+	check_user "$user"
+	for workspace in "$@"; do check_workspace "$workspace"; done
+
+	[ -z "$(uci -q get "$CONFIG.$user")" ] || fail "'$user' already exists"
+	generate_password
+
+	uci set "$CONFIG.$user=user"
+	uci set "$CONFIG.$user.password=$stored"
+	for workspace in "$@"; do uci add_list "$CONFIG.$user.workspace=$workspace"; done
+	uci commit "$CONFIG"
+
+	echo "Created user '$user'. Its password, shown only this once:" >&2
+	echo "$password"
+	;;
+passwd)
+	[ $# -eq 1 ] || usage
+	check_user "$1"
+	is_user "$1" || fail "no user '$1'"
+	generate_password
+
+	uci set "$CONFIG.$1.password=$stored"
+	uci commit "$CONFIG"
+
+	echo "New password of user '$1', shown only this once:" >&2
+	echo "$password"
+	;;
+del)
+	[ $# -eq 1 ] || usage
+	check_user "$1"
+	is_user "$1" || fail "no user '$1'"
+
+	uci delete "$CONFIG.$1"
+	uci commit "$CONFIG"
+	;;
+list)
+	[ $# -eq 0 ] || usage
+
+	for user in $(uci -q show "$CONFIG" | sed -n "s/^$CONFIG\.\([A-Za-z0-9_]*\)=user\$/\1/p"); do
+		workspaces=$(uci -q get "$CONFIG.$user.workspace")
+		echo "$user: ${workspaces:-(all workspaces)}"
+	done
+	;;
+*)
+	usage
+	;;
+esac

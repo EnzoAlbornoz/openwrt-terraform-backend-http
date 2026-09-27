@@ -28,7 +28,9 @@
  * While a state is locked, writing or deleting it requires the lock ID in
  * the `ID` query parameter (the client sends it with every write).
  *
- * Where states are stored is configured with UCI, see `config.ts`.
+ * Every request must come over HTTPS with the basic auth credentials of a
+ * user (the backend's `username` and `password`), see `auth.ts`. Users and
+ * where states are stored are configured with UCI, see `config.ts`.
  *
  * @see https://github.com/opentofu/opentofu/blob/main/internal/backend/remote-state/http/client.go
  */
@@ -36,6 +38,7 @@
 import { md5_file } from "digest";
 import { unlink } from "fs";
 
+import { authenticate } from "./auth.js";
 import { loadConfig, type Config } from "./config.js";
 import {
     assertBodySize,
@@ -276,8 +279,12 @@ function unlockState(event: H3Event): unknown {
     return conflict != null ? locked(event, conflict) : null;
 }
 
-// TODO: Authenticate requests before the first public release.
 const app = createApp()
+    .use(function (event: H3Event): null {
+        authenticate(event, config(event));
+
+        return null;
+    })
     .post("/:workspace/:state/lock", lockState)
     .delete("/:workspace/:state/lock", unlockState)
     .get("/:workspace/:state", getState)

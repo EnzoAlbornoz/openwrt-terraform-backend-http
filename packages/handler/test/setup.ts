@@ -2,7 +2,7 @@
  * Preloaded by `node --test` (`--import`) to run the handler sources on Node:
  *
  * - installs the ucode builtins as globals;
- * - resolves the ucode modules (`fs`, `digest`, `uci`) imported from `src/` to the
+ * - resolves the ucode modules (`fs`, `digest`, `log`, `uci`) imported from `src/` to the
  *   stand-ins in `ucode/`, instead of Node's own `fs`;
  * - resolves the `./module.js` imports of `src/` to their `.ts` sources, as
  *   the bundler does.
@@ -17,6 +17,7 @@ const SOURCES = new URL("../src/", import.meta.url).href;
 const MODULES: Record<string, string> = {
     fs: new URL("./ucode/fs.ts", import.meta.url).href,
     digest: new URL("./ucode/digest.ts", import.meta.url).href,
+    log: new URL("./ucode/log.ts", import.meta.url).href,
     uci: new URL("./ucode/uci.ts", import.meta.url).href,
 };
 
