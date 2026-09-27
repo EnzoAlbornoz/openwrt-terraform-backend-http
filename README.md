@@ -1,4 +1,4 @@
-# terraform-backend-http
+# Terraform HTTP Backend for OpenWrt
 
 A [Terraform](https://developer.hashicorp.com/terraform/language/backend/http) /
 [OpenTofu](https://opentofu.org/docs/language/settings/backends/http/) `http` state backend for
