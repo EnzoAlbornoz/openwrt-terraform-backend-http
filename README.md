@@ -13,7 +13,7 @@ upgrades.
 **OpenWrt 25.12 and newer (apk):**
 
 ```sh
-wget -O /etc/apk/keys/terraform-backend.pem https://enzoalbornoz.github.io/openwrt-terraform-backend-http/keys/openwrt-terraform-http-backend.pub
+wget -O /etc/apk/keys/terraform-backend.pem https://enzoalbornoz.github.io/openwrt-terraform-backend-http/keys/openwrt-terraform-backend-http.pub
 echo 'https://enzoalbornoz.github.io/openwrt-terraform-backend-http/apk/packages.adb' >> /etc/apk/repositories.d/customfeeds.list
 apk update
 apk add terraform-backend-http
