@@ -144,7 +144,7 @@ jobs:
 
             - name: Add public keys
               run: |
-                  for key in be6b587fbd94bc4f openwrt-terraform-http-backend.pub; do
+                  for key in be6b587fbd94bc4f openwrt-terraform-backend-http.pub; do
                       if [ ! -f "openwrt/keys/$key" ]; then
                           echo "::error::Missing openwrt/keys/$key, see openwrt/README.md"
                           exit 1
@@ -152,7 +152,7 @@ jobs:
                   done
 
                   mkdir -p site/keys
-                  cp openwrt/keys/be6b587fbd94bc4f openwrt/keys/openwrt-terraform-http-backend.pub site/keys/
+                  cp openwrt/keys/be6b587fbd94bc4f openwrt/keys/openwrt-terraform-backend-http.pub site/keys/
 
             - name: Attach packages to the release
               env:
