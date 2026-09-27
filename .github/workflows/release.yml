@@ -56,6 +56,8 @@ jobs:
         needs: handler
         runs-on: ubuntu-latest
         strategy:
+            # Report both formats, rather than cancelling one when the other fails.
+            fail-fast: false
             matrix:
                 include:
                     # The package is architecture independent (PKGARCH:=all),
@@ -108,6 +110,9 @@ jobs:
                   FEEDNAME: terraform
                   PACKAGES: terraform-backend-http
                   INDEX: 1
+                  # The check runs `git diff` in the mounted feed, which is not
+                  # a repository on its own; and the package has no init script.
+                  NO_SHFMT_CHECK: 1
                   KEY_BUILD: ${{ matrix.format == 'opkg' && secrets.USIGN_PRIVATE_KEY || '' }}
                   PRIVATE_KEY: ${{ matrix.format == 'apk' && secrets.APK_PRIVATE_KEY || '' }}
 
