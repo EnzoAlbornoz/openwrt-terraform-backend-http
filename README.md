@@ -5,10 +5,6 @@ A [Terraform](https://developer.hashicorp.com/terraform/language/backend/http) /
 OpenWrt routers. It runs inside the router's existing web server (uhttpd) as a ucode handler under
 `/terraform`, and stores states, with locking, on the router.
 
-> [!IMPORTANT]
-> Upgrading from 0.1, which had no authentication: every request is now rejected until you
-> [create a user](#users).
-
 ## Install
 
 Add the package repository once, then install the package. New releases show up as regular package
